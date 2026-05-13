@@ -2,8 +2,15 @@
 
 import { Fragment, useEffect, useState } from "react";
 import { Play, Lightbulb, RotateCcw, BookOpen } from "lucide-react";
+import {
+  Group,
+  Panel,
+  useDefaultLayout,
+  type LayoutStorage,
+} from "react-resizable-panels";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ResizeHandle } from "@/components/ui/resize-handle";
 import { CodeEditor } from "./CodeEditor";
 import { OutputPanel } from "./OutputPanel";
 import { buildSrcdoc, runChecks, transpile } from "@/lib/sandbox";
@@ -16,6 +23,26 @@ interface Props {
 
 const codeStorageKey = (id: string) => `rp.code.${id}`;
 
+const ssrSafeStorage: LayoutStorage = {
+  getItem: (key) =>
+    typeof window !== "undefined" ? window.localStorage.getItem(key) : null,
+  setItem: (key, value) => {
+    if (typeof window !== "undefined") window.localStorage.setItem(key, value);
+  },
+};
+
+function useIsLgUp() {
+  const [isLg, setIsLg] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const update = () => setIsLg(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  return isLg;
+}
+
 export function ChallengeDetail({ challenge }: Props) {
   const [code, setCode] = useState(challenge.starterCode);
   const [showHint, setShowHint] = useState(false);
@@ -24,6 +51,16 @@ export function ChallengeDetail({ challenge }: Props) {
   const [logs, setLogs] = useState<ConsoleEntry[]>([]);
   const [checks, setChecks] = useState<CheckResult[]>([]);
   const { markSolved } = useProgress();
+  const isLg = useIsLgUp();
+
+  const horizontal = useDefaultLayout({
+    id: "rp.layout.detail.h.v2",
+    storage: ssrSafeStorage,
+  });
+  const vertical = useDefaultLayout({
+    id: "rp.layout.detail.v.v2",
+    storage: ssrSafeStorage,
+  });
 
   useEffect(() => {
     let next = challenge.starterCode;
@@ -77,69 +114,117 @@ export function ChallengeDetail({ challenge }: Props) {
     setCode(challenge.solution);
   }
 
-  return (
-    <div className="grid h-full min-h-0 grid-cols-[minmax(0,360px)_minmax(0,1fr)_minmax(0,1fr)]">
-      <section className="scrollbar-thin h-full min-h-0 overflow-y-auto border-r border-border bg-background p-5">
-        <div className="mb-3 flex items-center gap-2">
-          <Badge variant={challenge.difficulty}>{challenge.difficulty}</Badge>
-          <Badge variant="outline" className="text-[10px]">
-            {challenge.category}
-          </Badge>
-          {challenge.source && (
-            <span className="text-[11px] text-muted-foreground">· {challenge.source}</span>
-          )}
-        </div>
-        <h1 className="mb-3 text-lg font-semibold leading-tight">{challenge.title}</h1>
-        <DescriptionMarkdown text={challenge.description} />
-        <div className="mt-5">
-          <p className="mb-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">Concepts</p>
-          <div className="flex flex-wrap gap-1">
-            {challenge.concepts.map((c) => (
-              <Badge key={c} variant="secondary" className="text-[10px] font-normal">
-                {c}
-              </Badge>
-            ))}
-          </div>
-        </div>
-        {showHint && (
-          <div className="mt-5 rounded-md border border-medium/30 bg-medium/5 p-3">
-            <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-medium">Hint</p>
-            <p className="text-sm leading-snug text-foreground">{challenge.hint}</p>
-          </div>
+  const description = (
+    <section className="scrollbar-thin h-full min-h-0 overflow-y-auto bg-background p-5">
+      <div className="mb-3 flex items-center gap-2">
+        <Badge variant={challenge.difficulty}>{challenge.difficulty}</Badge>
+        <Badge variant="outline" className="text-[10px]">
+          {challenge.category}
+        </Badge>
+        {challenge.source && (
+          <span className="text-[11px] text-muted-foreground">· {challenge.source}</span>
         )}
-      </section>
-
-      <section className="flex h-full min-h-0 flex-col">
-        <div className="min-h-0 flex-1">
-          <CodeEditor value={code} onChange={setCode} />
+      </div>
+      <h1 className="mb-3 text-lg font-semibold leading-tight">{challenge.title}</h1>
+      <DescriptionMarkdown text={challenge.description} />
+      <div className="mt-5">
+        <p className="mb-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">Concepts</p>
+        <div className="flex flex-wrap gap-1">
+          {challenge.concepts.map((c) => (
+            <Badge key={c} variant="secondary" className="text-[10px] font-normal">
+              {c}
+            </Badge>
+          ))}
         </div>
-        <div className="flex items-center gap-2 border-t border-border bg-background px-3 py-2">
-          <Button size="sm" onClick={run} disabled={busy} className="gap-1.5">
-            <Play className="h-3 w-3" /> Run
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => setShowHint(true)} className="gap-1.5">
-            <Lightbulb className="h-3 w-3" /> Hint
-          </Button>
-          <Button size="sm" variant="ghost" onClick={reset} className="gap-1.5">
-            <RotateCcw className="h-3 w-3" /> Reset
-          </Button>
-          <Button size="sm" variant="ghost" onClick={showSolution} className="gap-1.5">
-            <BookOpen className="h-3 w-3" /> Solution
-          </Button>
+      </div>
+      {showHint && (
+        <div className="mt-5 rounded-md border border-medium/30 bg-medium/5 p-3">
+          <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-medium">Hint</p>
+          <p className="text-sm leading-snug text-foreground">{challenge.hint}</p>
         </div>
-      </section>
+      )}
+    </section>
+  );
 
-      <section className="h-full min-h-0">
-        <OutputPanel
-          srcdoc={srcdoc}
-          busy={busy}
-          logs={logs}
-          checks={checks}
-          onLog={(entry) => setLogs((cur) => [...cur, entry])}
-          onReady={() => setBusy(false)}
-        />
-      </section>
-    </div>
+  const editorPane = (
+    <section className="flex h-full min-h-0 flex-col">
+      <div className="min-h-0 flex-1">
+        <CodeEditor value={code} onChange={setCode} />
+      </div>
+      <div className="flex flex-wrap items-center gap-2 border-t border-border bg-background px-3 py-2">
+        <Button size="sm" onClick={run} disabled={busy} className="gap-1.5">
+          <Play className="h-3 w-3" /> Run
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => setShowHint(true)} className="gap-1.5">
+          <Lightbulb className="h-3 w-3" /> Hint
+        </Button>
+        <Button size="sm" variant="ghost" onClick={reset} className="gap-1.5">
+          <RotateCcw className="h-3 w-3" /> Reset
+        </Button>
+        <Button size="sm" variant="ghost" onClick={showSolution} className="gap-1.5">
+          <BookOpen className="h-3 w-3" /> Solution
+        </Button>
+      </div>
+    </section>
+  );
+
+  const outputPane = (
+    <section className="h-full min-h-0">
+      <OutputPanel
+        srcdoc={srcdoc}
+        busy={busy}
+        logs={logs}
+        checks={checks}
+        onLog={(entry) => setLogs((cur) => [...cur, entry])}
+        onReady={() => setBusy(false)}
+      />
+    </section>
+  );
+
+  if (isLg) {
+    return (
+      <Group
+        id="rp-detail-h"
+        orientation="horizontal"
+        defaultLayout={horizontal.defaultLayout}
+        onLayoutChanged={horizontal.onLayoutChanged}
+        className="h-full w-full"
+      >
+        <Panel id="desc" defaultSize="28%" minSize="16%">
+          {description}
+        </Panel>
+        <ResizeHandle orientation="horizontal" />
+        <Panel id="editor" defaultSize="40%" minSize="20%">
+          {editorPane}
+        </Panel>
+        <ResizeHandle orientation="horizontal" />
+        <Panel id="output" defaultSize="32%" minSize="18%">
+          {outputPane}
+        </Panel>
+      </Group>
+    );
+  }
+
+  return (
+    <Group
+      id="rp-detail-v"
+      orientation="vertical"
+      defaultLayout={vertical.defaultLayout}
+      onLayoutChanged={vertical.onLayoutChanged}
+      className="h-full w-full"
+    >
+      <Panel id="desc" defaultSize="28%" minSize="12%">
+        {description}
+      </Panel>
+      <ResizeHandle orientation="vertical" />
+      <Panel id="editor" defaultSize="40%" minSize="20%">
+        {editorPane}
+      </Panel>
+      <ResizeHandle orientation="vertical" />
+      <Panel id="output" defaultSize="32%" minSize="15%">
+        {outputPane}
+      </Panel>
+    </Group>
   );
 }
 

@@ -38,7 +38,7 @@ export function Sidebar({ activeId, onSelect }: Props) {
   }, [filtered]);
 
   return (
-    <aside className="flex h-full w-[260px] shrink-0 flex-col border-r border-border bg-[#0a0a0a] text-sm">
+    <aside className="flex h-full w-full min-w-0 flex-col bg-[#0a0a0a] text-sm">
       <div className="flex flex-col gap-3 border-b border-border px-3 py-3">
         <div>
           <p className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Difficulty</p>
